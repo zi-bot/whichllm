@@ -1,4 +1,4 @@
-use crate::models::types::{ModelInfo, GGUFVariant, QuantType, EvalResults};
+use crate::models::types::{GGUFVariant, QuantType};
 use serde::{Deserialize, Serialize};
 
 const HF_API: &str = "https://huggingface.co/api";
@@ -6,9 +6,9 @@ const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
 
 /// Default quant variants to assume for GGUF repos
 const DEFAULT_QUANTS: &[QuantType] = &[
-    QuantType::Q4_K_M,
-    QuantType::Q5_K_M,
-    QuantType::Q8_0,
+    QuantType::Q4KM,
+    QuantType::Q5KM,
+    QuantType::Q80,
 ];
 
 #[derive(Debug, Deserialize)]
@@ -172,7 +172,7 @@ impl HfModelRow {
 
         // For text-gen (non-GGUF) models with no variants, add Q4_K_M and Q5_K_M
         if gguf_variants.is_empty() && !is_gguf_repo {
-            for &quant in &[QuantType::Q4_K_M, QuantType::Q5_K_M] {
+            for &quant in &[QuantType::Q4KM, QuantType::Q5KM] {
                 gguf_variants.push(GGUFVariant {
                     filename: format!("model-{}.gguf", quant.display_name().to_lowercase()),
                     size_bytes: 0,

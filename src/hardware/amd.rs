@@ -1,4 +1,4 @@
-use crate::hardware::types::{GpuInfo, GpuVendor};
+use crate::hardware::types::GpuInfo;
 
 #[allow(dead_code)]
 pub fn detect_amd() -> Vec<GpuInfo> {

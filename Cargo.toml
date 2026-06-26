@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2024"
 description = "Find the best local LLM that runs on your hardware"
 license = "MIT"
-repository = "https://github.com/Andyyyy64/whichllm"
+repository = "https://github.com/zi-bot/whichllm"
 keywords = ["llm", "gpu", "vram", "huggingface", "benchmark"]
 categories = ["command-line-utilities"]
 

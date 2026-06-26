@@ -15,7 +15,7 @@ cargo run --release
 ## Install
 
 ```bash
-cargo install --git https://github.com/Andyyyy64/whichllm
+cargo install --git https://github.com/zi-bot/whichllm
 ```
 
 ## Usage
