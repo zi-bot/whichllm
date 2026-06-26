@@ -1,9 +1,11 @@
 mod cli;
 mod hardware;
+mod models;
 
 use clap::Parser;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = cli::Args::parse();
     let hw = hardware::detect(args.gpu.as_deref());
 
@@ -16,4 +18,9 @@ fn main() {
     }
     println!("CPU: {} ({} cores)", hw.cpu.name, hw.cpu.cores);
     println!("RAM: {:.1} GB", hw.ram_gb);
+    println!();
+
+    let client = reqwest::Client::new();
+    let models = models::fetch_models(&client, args.refresh).await;
+    println!("Fetched {} models", models.len());
 }
