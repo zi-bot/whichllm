@@ -1,7 +1,7 @@
 pub mod types;
 pub mod nvidia;
-#[allow(dead_code)]
 pub mod amd;
+pub mod intel;
 pub mod apple;
 pub mod cpu;
 pub mod memory;
@@ -10,6 +10,7 @@ use types::{GpuInfo, GpuVendor, HardwareInfo, OsType};
 
 /// Known GPU specs for --gpu simulation
 const GPU_TABLE: &[(&str, u64, f64)] = &[
+    // NVIDIA
     ("RTX 5090",     32768, 1792.0),
     ("RTX 5080",     16384,  960.0),
     ("RTX 4090",     24576, 1008.0),
@@ -24,6 +25,32 @@ const GPU_TABLE: &[(&str, u64, f64)] = &[
     ("A100 80GB",    81920, 2039.0),
     ("H100",         81920, 3352.0),
     ("L40S",         49152,  864.0),
+    // AMD
+    ("RX 7900 XTX",  24576,  960.0),
+    ("RX 7900 XT",   20480,  800.0),
+    ("RX 7900 GRE",  16384,  576.0),
+    ("RX 7800 XT",   16384,  576.0),
+    ("RX 7700 XT",   12288,  432.0),
+    ("RX 7600 XT",    8192,  288.0),
+    ("RX 7600",       8192,  288.0),
+    ("RX 6950 XT",   16384,  576.0),
+    ("RX 6900 XT",   16384,  512.0),
+    ("RX 6800 XT",   16384,  512.0),
+    ("RX 6800",      16384,  512.0),
+    ("RX 6700 XT",   12288,  384.0),
+    ("RX 6600 XT",    8192,  288.0),
+    ("RX 6600",       8192,  224.0),
+    ("MI300X",       196608, 5300.0),
+    ("MI250X",       131072, 3277.0),
+    ("MI250",        131072, 3277.0),
+    ("MI100",        32768,  1024.0),
+    // Intel
+    ("Arc B580",     12288,  272.0),
+    ("Arc B570",     10240,  240.0),
+    ("Arc A770",      8192,  512.0),
+    ("Arc A750",      8192,  512.0),
+    ("Arc A580",      8192,  512.0),
+    ("Arc A380",      6144,  288.0),
 ];
 
 fn simulate_gpu(name: &str) -> Option<GpuInfo> {
@@ -46,6 +73,13 @@ fn simulate_gpu(name: &str) -> Option<GpuInfo> {
 
     entry.map(|(gpu_name, vram_mb, bw)| {
         let total_vram = *vram_mb * count as u64;
+        let vendor = if gpu_name.starts_with("RX ") || gpu_name.starts_with("MI") {
+            GpuVendor::Amd
+        } else if gpu_name.starts_with("Arc ") {
+            GpuVendor::Intel
+        } else {
+            GpuVendor::Nvidia
+        };
         GpuInfo {
             name: if count > 1 {
                 format!("{count}x {gpu_name}")
@@ -54,7 +88,7 @@ fn simulate_gpu(name: &str) -> Option<GpuInfo> {
             },
             vram_mb: total_vram,
             bandwidth_gbps: *bw * count as f64,
-            vendor: GpuVendor::Nvidia,
+            vendor,
         }
     })
 }
@@ -82,14 +116,17 @@ pub fn detect(gpu_override: Option<&str>) -> HardwareInfo {
     HardwareInfo { gpus, cpu, ram_gb, os }
 }
 
+/// Detect all GPUs — collect from all vendors (not just first match)
 fn auto_detect_gpus() -> Vec<GpuInfo> {
     let mut gpus = vec![];
     gpus.extend(nvidia::detect_nvidia());
-    if gpus.is_empty() {
-        gpus.extend(amd::detect_amd());
-    }
-    if gpus.is_empty() {
-        gpus.extend(apple::detect_apple());
-    }
+    gpus.extend(amd::detect_amd());
+    gpus.extend(intel::detect_intel());
+    gpus.extend(apple::detect_apple());
+
+    // Deduplicate by name (some systems may report same GPU via multiple methods)
+    let mut seen = std::collections::HashSet::new();
+    gpus.retain(|g| seen.insert(g.name.clone()));
+
     gpus
 }
