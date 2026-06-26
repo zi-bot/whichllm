@@ -1,6 +1,7 @@
 mod cli;
 mod hardware;
 mod models;
+mod benchmarks;
 
 use clap::Parser;
 
@@ -21,6 +22,9 @@ async fn main() {
     println!();
 
     let client = reqwest::Client::new();
-    let models = models::fetch_models(&client, args.refresh).await;
-    println!("Fetched {} models", models.len());
+    let mut models = models::fetch_models(&client, args.refresh).await;
+    benchmarks::merge_benchmarks(&mut models);
+
+    let with_bench = models.iter().filter(|m| m.benchmark_score.is_some()).count();
+    println!("Fetched {} models ({} with benchmarks)", models.len(), with_bench);
 }
