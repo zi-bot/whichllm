@@ -1,8 +1,15 @@
-use crate::models::types::{GGUFVariant, QuantType};
+use crate::models::types::{ModelInfo, GGUFVariant, QuantType, EvalResults};
 use serde::{Deserialize, Serialize};
 
 const HF_API: &str = "https://huggingface.co/api";
 const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
+
+/// Default quant variants to assume for GGUF repos
+const DEFAULT_QUANTS: &[QuantType] = &[
+    QuantType::Q4_K_M,
+    QuantType::Q5_K_M,
+    QuantType::Q8_0,
+];
 
 #[derive(Debug, Deserialize)]
 struct HfModel {
@@ -22,8 +29,6 @@ struct HfModel {
 #[derive(Debug, Deserialize)]
 struct HfSibling {
     rfilename: String,
-    #[serde(default)]
-    size: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +51,7 @@ pub struct HfModelRow {
     pub base_model: Option<String>,
     pub pipeline_tag: Option<String>,
     pub eval_scores: Vec<(String, f64)>,
+    pub is_gguf_repo: bool,
 }
 
 pub async fn fetch_text_generation(
@@ -136,27 +142,59 @@ async fn fetch_with_retry(client: &reqwest::Client, url: &str) -> Result<Vec<HfM
 
 impl HfModelRow {
     fn from_hf(m: HfModel) -> Self {
-        let gguf_variants: Vec<GGUFVariant> = m
+        let is_gguf_repo = m.id.to_lowercase().contains("gguf");
+
+        // Parse actual siblings if available
+        let mut gguf_variants: Vec<GGUFVariant> = m
             .siblings
             .iter()
             .filter(|s| s.rfilename.ends_with(".gguf"))
-            .map(|s| GGUFVariant {
-                filename: s.rfilename.clone(),
-                size_bytes: s.size,
-                quant: QuantType::from_filename(&s.rfilename),
+            .map(|s| {
+                let quant = QuantType::from_filename(&s.rfilename);
+                GGUFVariant {
+                    filename: s.rfilename.clone(),
+                    size_bytes: 0, // list API doesn't provide sizes
+                    quant,
+                }
             })
             .collect();
 
-        let params_b = extract_params(&m.id, &m.tags);
-        let base_model = m.card_data.as_ref().and_then(|c| c.base_model.as_ref()).and_then(|v| {
-            if let Some(s) = v.as_str() {
-                Some(s.to_string())
-            } else if let Some(arr) = v.as_array() {
-                arr.first().and_then(|s| s.as_str()).map(|s| s.to_string())
-            } else {
-                None
+        // If no siblings but it's a GGUF repo, add default variants
+        if gguf_variants.is_empty() && is_gguf_repo {
+            for &quant in DEFAULT_QUANTS {
+                gguf_variants.push(GGUFVariant {
+                    filename: format!("model-{}.gguf", quant.display_name().to_lowercase()),
+                    size_bytes: 0,
+                    quant,
+                });
             }
-        });
+        }
+
+        // For text-gen (non-GGUF) models with no variants, add Q4_K_M and Q5_K_M
+        if gguf_variants.is_empty() && !is_gguf_repo {
+            for &quant in &[QuantType::Q4_K_M, QuantType::Q5_K_M] {
+                gguf_variants.push(GGUFVariant {
+                    filename: format!("model-{}.gguf", quant.display_name().to_lowercase()),
+                    size_bytes: 0,
+                    quant,
+                });
+            }
+        }
+
+        let params_b = extract_params(&m.id, &m.tags);
+        let base_model = m
+            .card_data
+            .as_ref()
+            .and_then(|c| c.base_model.as_ref())
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(arr) = v.as_array() {
+                    arr.first().and_then(|s| s.as_str()).map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
 
         let eval_scores = m
             .card_data
@@ -175,6 +213,7 @@ impl HfModelRow {
             base_model,
             pipeline_tag: m.pipeline_tag,
             eval_scores,
+            is_gguf_repo,
         }
     }
 }
@@ -191,7 +230,6 @@ fn extract_params(id: &str, tags: &[String]) -> Option<f64> {
         }
     }
     let lower = id.to_lowercase();
-    // Handle patterns like "7B", "70b", "1.5b" in model ID
     for part in lower.split(&['-', '_', '.', ' '][..]) {
         if part.ends_with('b') {
             if let Ok(v) = part.trim_end_matches('b').parse::<f64>() {

@@ -32,7 +32,8 @@ pub fn merge_models(
             benchmark_source: None,
         });
 
-        if row.gguf_variants.len() > entry.gguf_variants.len() {
+        // Merge GGUF variants (prefer more variants or ones from GGUF repo)
+        if row.gguf_variants.len() > entry.gguf_variants.len() || (row.is_gguf_repo && !entry.gguf_variants.is_empty()) {
             entry.gguf_variants = row.gguf_variants;
         }
         entry.downloads = entry.downloads.max(row.downloads);
