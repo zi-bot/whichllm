@@ -25,11 +25,10 @@ pub fn rank(
 
         for variant in &model.gguf_variants {
             // Quant filter
-            if let Some(qf) = quant_filter {
-                if variant.quant.display_name() != qf {
+            if let Some(qf) = quant_filter
+                && variant.quant.display_name() != qf {
                     continue;
                 }
-            }
 
             let vram_mb = vram::estimate_vram(model, variant, ctx_len);
             let fit = vram::fit_type(vram_mb, hw);
@@ -44,11 +43,10 @@ pub fn rank(
             let tps = speed::estimate_tps(vram_mb, gpu_bandwidth, params_b, q_eff, fit, hw);
 
             // Min speed filter
-            if let Some(min) = min_speed {
-                if tps < min {
+            if let Some(min) = min_speed
+                && tps < min {
                     continue;
                 }
-            }
 
             let score = compute_score(model, variant, fit, tps);
             let marker = score_marker(model);

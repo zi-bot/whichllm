@@ -120,7 +120,7 @@ pub fn print_plan(matches: &[ModelInfo], quant: Option<&str>, ctx_len: u64, json
 
         // Get variants
         let variants: Vec<_> = model.gguf_variants.iter()
-            .filter(|v| quant.map_or(true, |q| v.quant.display_name() == q))
+            .filter(|v| quant.is_none_or(|q| v.quant.display_name() == q))
             .collect();
 
         if variants.is_empty() {
@@ -154,7 +154,7 @@ pub fn print_plan(matches: &[ModelInfo], quant: Option<&str>, ctx_len: u64, json
 fn print_plan_json(matches: &[ModelInfo], quant: Option<&str>, ctx_len: u64) {
     let entries: Vec<serde_json::Value> = matches.iter().map(|model| {
         let variants: Vec<serde_json::Value> = model.gguf_variants.iter()
-            .filter(|v| quant.map_or(true, |q| v.quant.display_name() == q))
+            .filter(|v| quant.is_none_or(|q| v.quant.display_name() == q))
             .map(|variant| {
                 let vram_mb = vram::estimate_vram(model, variant, ctx_len);
                 let fitting_gpus: Vec<&str> = GPU_TABLE.iter()
@@ -208,7 +208,7 @@ pub fn print_upgrade(results: &[(String, crate::hardware::types::HardwareInfo, V
     for idx in 0..results.iter().map(|(_, _, r)| r.len()).max().unwrap_or(0) {
         let row: Vec<String> = results.iter().map(|(_, _, ranked)| {
             if let Some(r) = ranked.get(idx) {
-                let short_id = r.model.model_id.split('/').last().unwrap_or(&r.model.model_id);
+                let short_id = r.model.model_id.split('/').next_back().unwrap_or(&r.model.model_id);
                 format!("{short_id} ({:.1})", r.score)
             } else {
                 String::new()

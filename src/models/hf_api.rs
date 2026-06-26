@@ -60,13 +60,11 @@ pub async fn fetch_text_generation(
     refresh: bool,
 ) -> Vec<HfModelRow> {
     let key = "hf_text_generation";
-    if !refresh {
-        if let Some(c) = cache {
-            if let Some(data) = c.get::<Vec<HfModelRow>>(key, CACHE_TTL) {
+    if !refresh
+        && let Some(c) = cache
+            && let Some(data) = c.get::<Vec<HfModelRow>>(key, CACHE_TTL) {
                 return data;
             }
-        }
-    }
 
     let url = format!(
         "{HF_API}/models?pipeline_tag=text-generation&sort=downloads&direction=-1&limit=100"
@@ -95,13 +93,11 @@ pub async fn fetch_gguf(
     refresh: bool,
 ) -> Vec<HfModelRow> {
     let key = "hf_gguf";
-    if !refresh {
-        if let Some(c) = cache {
-            if let Some(data) = c.get::<Vec<HfModelRow>>(key, CACHE_TTL) {
+    if !refresh
+        && let Some(c) = cache
+            && let Some(data) = c.get::<Vec<HfModelRow>>(key, CACHE_TTL) {
                 return data;
             }
-        }
-    }
 
     let url = format!("{HF_API}/models?search=gguf&sort=downloads&direction=-1&limit=100");
     let result = fetch_with_retry(client, &url).await;
@@ -221,21 +217,18 @@ impl HfModelRow {
 fn extract_params(id: &str, tags: &[String]) -> Option<f64> {
     for tag in tags {
         let lower = tag.to_lowercase();
-        if lower.contains("billion") || lower.contains("b parameters") {
-            if let Some(num) = lower.split_whitespace().next() {
-                if let Ok(v) = num.parse::<f64>() {
+        if (lower.contains("billion") || lower.contains("b parameters"))
+            && let Some(num) = lower.split_whitespace().next()
+                && let Ok(v) = num.parse::<f64>() {
                     return Some(v);
                 }
-            }
-        }
     }
     let lower = id.to_lowercase();
     for part in lower.split(&['-', '_', '.', ' '][..]) {
-        if part.ends_with('b') {
-            if let Ok(v) = part.trim_end_matches('b').parse::<f64>() {
+        if part.ends_with('b')
+            && let Ok(v) = part.trim_end_matches('b').parse::<f64>() {
                 return Some(v);
             }
-        }
     }
     None
 }

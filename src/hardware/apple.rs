@@ -43,14 +43,14 @@ pub fn detect_apple() -> Vec<GpuInfo> {
 }
 
 #[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
 pub fn detect_apple() -> Vec<GpuInfo> {
     vec![]
 }
 
 fn estimate_apple_bandwidth(vram_mb: u64) -> f64 {
     let vram_gb = vram_mb as f64 / 1024.0;
-    if vram_gb >= 128.0 { 400.0 }
-    else if vram_gb >= 64.0 { 400.0 }
+    if vram_gb >= 64.0 { 400.0 }
     else if vram_gb >= 36.0 { 300.0 }
     else if vram_gb >= 18.0 { 200.0 }
     else { 100.0 }

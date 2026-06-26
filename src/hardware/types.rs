@@ -1,4 +1,5 @@
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct GpuInfo {
     pub name: String,
     pub vram_mb: u64,
@@ -11,7 +12,9 @@ pub enum GpuVendor {
     Nvidia,
     Amd,
     Apple,
+    #[allow(dead_code)]
     Intel,
+    #[allow(dead_code)]
     Unknown,
 }
 

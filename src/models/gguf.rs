@@ -7,7 +7,7 @@ pub fn merge_models(
 ) -> Vec<ModelInfo> {
     let mut seen: std::collections::HashMap<String, ModelInfo> = std::collections::HashMap::new();
 
-    for row in text_gen.into_iter().chain(gguf.into_iter()) {
+    for row in text_gen.into_iter().chain(gguf) {
         let entry = seen.entry(row.id.clone()).or_insert_with(|| ModelInfo {
             model_id: row.id.clone(),
             author: row.author.clone(),
@@ -40,6 +40,6 @@ pub fn merge_models(
     }
 
     let mut models: Vec<ModelInfo> = seen.into_values().collect();
-    models.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+    models.sort_by_key(|b| std::cmp::Reverse(b.downloads));
     models
 }

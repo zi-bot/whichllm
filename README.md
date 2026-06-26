@@ -60,7 +60,7 @@ Find the GPU needed for a specific model.
 
 ```bash
 whichllm plan "llama 3 70b"
-whichllm plan "Qwen2.5-72B" --quant Q8_0
+whichllm plan "Qwen2.5-72B" --quant Q80
 whichllm plan "mistral 7b" --context-length 32768
 ```
 
@@ -91,7 +91,7 @@ whichllm --gpu-only --speed usable --vram-headroom 1GB
 whichllm --profile coding
 
 # Filter by quantization
-whichllm --quant Q4_K_M
+whichllm --quant Q4KM
 
 # Longer context (increases KV cache estimate)
 whichllm --context-length 64k

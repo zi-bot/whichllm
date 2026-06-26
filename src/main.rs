@@ -91,22 +91,19 @@ async fn cmd_rank(args: &cli::Args) {
         || args.fit.as_deref() == Some("gpu");
 
     // VRAM headroom
-    if let Some(ref headroom) = args.vram_headroom {
-        if let Some(mb) = cli::parse_size_mb(headroom) {
+    if let Some(ref headroom) = args.vram_headroom
+        && let Some(mb) = cli::parse_size_mb(headroom) {
             for gpu in &mut hw.gpus {
                 gpu.vram_mb = gpu.vram_mb.saturating_sub(mb);
             }
         }
-    }
 
     // RAM budget
-    if let Some(ref budget) = args.ram_budget {
-        if budget != "available" {
-            if let Some(mb) = cli::parse_size_mb(budget) {
+    if let Some(ref budget) = args.ram_budget
+        && budget != "available"
+            && let Some(mb) = cli::parse_size_mb(budget) {
                 hw.ram_gb = mb as f64 / 1024.0;
             }
-        }
-    }
 
     // Context length
     let ctx_len = args
