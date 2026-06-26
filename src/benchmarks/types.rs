@@ -30,7 +30,8 @@ impl Evidence {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    #[allow(dead_code)]
+pub fn from_str(s: &str) -> Self {
         match s {
             "direct" => Self::Direct,
             "variant" => Self::Variant,

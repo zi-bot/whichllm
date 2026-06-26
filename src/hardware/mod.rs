@@ -1,11 +1,12 @@
 pub mod types;
 pub mod nvidia;
+#[allow(dead_code)]
 pub mod amd;
 pub mod apple;
 pub mod cpu;
 pub mod memory;
 
-use types::{GpuInfo, GpuVendor, CpuInfo, HardwareInfo, OsType};
+use types::{GpuInfo, GpuVendor, HardwareInfo, OsType};
 
 /// Known GPU specs for --gpu simulation
 const GPU_TABLE: &[(&str, u64, f64)] = &[

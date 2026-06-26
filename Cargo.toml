@@ -2,6 +2,11 @@
 name = "whichllm"
 version = "0.1.0"
 edition = "2024"
+description = "Find the best local LLM that runs on your hardware"
+license = "MIT"
+repository = "https://github.com/Andyyyy64/whichllm"
+keywords = ["llm", "gpu", "vram", "huggingface", "benchmark"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
