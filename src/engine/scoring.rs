@@ -9,7 +9,10 @@ pub fn rank(
     models: &[ModelInfo],
     hw: &HardwareInfo,
     top: usize,
-    speed_filter: Option<&str>,
+    min_speed: Option<f64>,
+    ctx_len: u64,
+    gpu_only: bool,
+    quant_filter: Option<&str>,
 ) -> Vec<RankResult> {
     let gpu_bandwidth: f64 = hw.gpus.iter().map(|g| g.bandwidth_gbps).sum();
 
@@ -20,28 +23,35 @@ pub fn rank(
             continue;
         }
 
-        // Try each GGUF variant, pick the best score
         for variant in &model.gguf_variants {
-            let vram_mb = vram::estimate_vram(model, variant);
+            // Quant filter
+            if let Some(qf) = quant_filter {
+                if variant.quant.display_name() != qf {
+                    continue;
+                }
+            }
+
+            let vram_mb = vram::estimate_vram(model, variant, ctx_len);
             let fit = vram::fit_type(vram_mb, hw);
+
+            // GPU-only filter
+            if gpu_only && fit != FitType::FullGpu {
+                continue;
+            }
+
             let q_eff = speed::quant_efficiency(variant.quant.bits_per_weight());
             let params_b = model.params_b.unwrap_or(0.0);
             let tps = speed::estimate_tps(vram_mb, gpu_bandwidth, params_b, q_eff, fit, hw);
 
-            let score = compute_score(model, variant, fit, tps);
-            let marker = score_marker(model);
-
-            // Speed filter
-            if let Some(filter) = speed_filter {
-                let min_tps = match filter {
-                    "usable" => 10.0,
-                    "fast" => 30.0,
-                    _ => 0.0,
-                };
-                if tps < min_tps {
+            // Min speed filter
+            if let Some(min) = min_speed {
+                if tps < min {
                     continue;
                 }
             }
+
+            let score = compute_score(model, variant, fit, tps);
+            let marker = score_marker(model);
 
             results.push(RankResult {
                 model: model.clone(),
@@ -66,31 +76,110 @@ pub fn rank(
     results
 }
 
+/// Fuzzy-find models matching a query string
+pub fn find_model(models: &[ModelInfo], query: &str) -> Vec<ModelInfo> {
+    let query_lower = query.to_lowercase().replace(' ', "");
+    let mut matches: Vec<(ModelInfo, i32)> = vec![];
+
+    for model in models {
+        let id_lower = model.model_id.to_lowercase().replace(' ', "");
+        let mut score = 0i32;
+
+        // Exact substring match (highest priority)
+        if id_lower.contains(&query_lower) {
+            score = 100;
+        } else {
+            // Check if all words/tokens in query appear in model ID
+            let query_tokens = tokenize(&query_lower);
+            let id_tokens = tokenize(&id_lower);
+            let matched = query_tokens.iter().filter(|qt| {
+                id_tokens.iter().any(|it| it.contains(qt.as_str()) || qt.contains(it.as_str()))
+            }).count();
+            if matched > 0 {
+                score = (matched * 100 / query_tokens.len()) as i32;
+            }
+        }
+
+        if score > 0 {
+            matches.push((model.clone(), score));
+        }
+    }
+
+    // Sort by match score desc, then downloads
+    matches.sort_by(|a, b| {
+        match b.1.cmp(&a.1) {
+            std::cmp::Ordering::Equal => b.0.downloads.cmp(&a.0.downloads),
+            other => other,
+        }
+    });
+
+    matches.into_iter().map(|(m, _)| m).collect()
+}
+
+/// Tokenize: split on non-alphanumeric, keep numeric suffixes
+fn tokenize(s: &str) -> Vec<String> {
+    s.split(&['-', '_', '.', ' '][..])
+        .filter(|t| !t.is_empty())
+        .map(|t| t.to_string())
+        .collect()
+}
+
+/// Check if a model matches a profile
+pub fn matches_profile(model: &ModelInfo, profile: &str) -> bool {
+    let id_lower = model.model_id.to_lowercase();
+
+    match profile {
+        "coding" => {
+            const PREFIXES: &[&str] = &[
+                "deepseek-ai/deepseek-coder",
+                "qwen/qwen2.5-coder",
+                "microsoft/phi-3",
+                "mistralai/codestral",
+                "qwen/qwen3-coder",
+            ];
+            PREFIXES.iter().any(|p| id_lower.starts_with(p))
+        }
+        "vision" => {
+            const PREFIXES: &[&str] = &[
+                "llava",
+                "qwen/qwen2-vl",
+                "google/paligemma",
+                "cogvlm",
+                "internvl",
+            ];
+            PREFIXES.iter().any(|p| id_lower.contains(p))
+        }
+        "math" => {
+            const PREFIXES: &[&str] = &[
+                "deepseek-ai/deepseek-math",
+                "mathstral",
+            ];
+            PREFIXES.iter().any(|p| id_lower.starts_with(p))
+        }
+        _ => true, // "general" and unknown pass all
+    }
+}
+
 fn compute_score(model: &ModelInfo, variant: &GGUFVariant, fit: FitType, tps: f64) -> f64 {
     let benchmark = model.benchmark_score.unwrap_or(30.0);
     let evidence_weight = model.benchmark_confidence.unwrap_or(0.55);
 
-    // Size bonus: log2(params_gb), capped at 35
     let params_b = model.params_b.unwrap_or(1.0);
     let size_bonus = (params_b.ln() / 2.0_f64.ln()).min(35.0);
 
-    // Quantization quality penalty
     let quant_penalty = variant.quant.quality_penalty();
 
-    // Fit type factor
     let fit_factor = match fit {
         FitType::FullGpu => 1.0,
         FitType::PartialOffload => 0.72,
         FitType::CpuOnly => 0.50,
     };
 
-    // Speed adjustment: -8 to +8
     let speed_adj = if tps >= 30.0 { 8.0 }
     else if tps >= 10.0 { 4.0 }
     else if tps >= 4.0 { -2.0 }
     else { -8.0 };
 
-    // Source trust bonus
     let trust_adj = if is_official_org(model) { 3.0 } else { 0.0 };
 
     let score = benchmark * evidence_weight * (1.0 + size_bonus / 100.0)
