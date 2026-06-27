@@ -186,7 +186,7 @@ GPU simulation (`--gpu`) uses a built-in spec table:
 ## Development
 
 ```bash
-git clone https://github.com/Andyyyy64/whichllm.git
+git clone https://github.com/zi-bot/whichllm.git
 cd whichllm
 cargo build
 cargo run -- --gpu "RTX 4090"
